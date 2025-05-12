@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Central de Alerta de Cheias</title>
+    <style>
+        body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(to right, #fdfbfb, #ebedee);
+}
+
+.container {
+    max-width: 900px;
+    margin: 50px auto;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    border: 1px solid #ddd;
+}
+
+.header {
+    background-color: #b00020;
+    color: #ffffff;
+    padding: 30px;
+    text-align: center;
+    font-size: 2.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    letter-spacing: 1px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.header i {
+    font-size: 1.8em;
+}
+
+.messages-container {
+    padding: 30px;
+    max-height: 520px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background-color: #fff6f6;
+}
+
+.message-box {
+    background-color: #ffeaea;
+    border-left: 6px solid #b00020;
+    padding: 18px 22px;
+    border-radius: 10px;
+    font-size: 1.1em;
+    color: #222;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    animation: fadeIn 0.4s ease;
+    transition: all 0.3s ease;
+    line-height: 1.5;
+    flex-wrap: wrap;
+    word-wrap: break-word;
+    word-break: break-word;
+}
+
+.message-box > div {
+    flex: 1;
+    min-width: 0;
+}
+
+.message-box::before {
+    content: "Defesa Civil: ";
+    font-weight: bold;
+    margin-right: 4px;
+    color: #da2747;
+}
+.-box:hover {
+    background-color: #ffdbdb;
+    transform: scale(1.02);
+    cursor: default;
+}
+
+.message-box i {
+    color: #b00020;
+    font-size: 1.5em;
+    flex-shrink: 0;
+}
+
+.message-box a {
+    color: #0066cc;
+    text-decoration: underline;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.message-box a:hover {
+    color: #004999;
+    text-decoration: underline;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Scrollbar leve para mensagens */
+.messages-container::-webkit-scrollbar {
+    width: 6px;
+}
+.messages-container::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 3px;
+}
+.messages-container::-webkit-scrollbar-thumb:hover {
+    background-color: #999;
+}
+
+.hora-msg {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+     </style>
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <i class="fas fa-exclamation-triangle"></i>
+            Central de Alerta de Cheias
+        </div>
+        <div style="padding: 20px; font-size: 1.1em; color: #555;">
+    <strong>Enviado por:</strong> Defesa Civil
+</div>
+        <div class="messages-container" id="messages-container">
+            <!-- Mensagens aparecerão aqui -->
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-database-compat.min.js"></script>
+
+    <script>
+        // Config Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCvhyniR0OYTHGXKoEqsShn8Q4iPrcZFIA",
+            authDomain: "change-map-status.firebaseapp.com",
+            databaseURL: "https://change-map-status-default-rtdb.firebaseio.com",
+            projectId: "change-map-status",
+            storageBucket: "change-map-status.appspot.com",
+            messagingSenderId: "694811681430",
+            appId: "1:694811681430:web:d84fe0256ab33c197318b7",
+            measurementId: "G-E3M7PCK3JV"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        // Solicita permissão para notificações ao carregar a página
+if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+    Notification.requestPermission();
+}
+
+        const database = firebase.database();
+        const messagesContainer = document.getElementById('messages-container');
+
+        // Função para detectar URLs e transformá-las em links clicáveis
+        function detectURLs(text) {
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            return text.replace(urlRegex, function(url) {
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+
+            const dbPath = "messages";
+
+            database.ref(dbPath).on("child_added", (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    let msgText = typeof data === "string" ? data : 
+                        (data.text || data.message || data.mensagem || JSON.stringify(data));
+                    
+                    // Detecta URLs e converte para links clicáveis
+                    msgText = detectURLs(msgText);
+
+                    const now = new Date();
+                    const hora = now.toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' });
+
+                    const messageBox = document.createElement("div");
+                    messageBox.className = "message-box";
+                    messageBox.innerHTML = `
+                        <i class="fas fa-bell"></i>
+                        <div>
+                            <div>${msgText}</div>
+                            <div class="hora-msg">${hora}</div>
+                        </div>
+                    `;
+
+                    messagesContainer.appendChild(messageBox);
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                }
+            });
+        });
+    </script>
+</body>
+</html>
