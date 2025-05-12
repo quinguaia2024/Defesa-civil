@@ -147,69 +147,84 @@
     <!-- Firebase SDK -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-database-compat.min.js"></script>
-
     <script>
-        // Config Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyCvhyniR0OYTHGXKoEqsShn8Q4iPrcZFIA",
-            authDomain: "change-map-status.firebaseapp.com",
-            databaseURL: "https://change-map-status-default-rtdb.firebaseio.com",
-            projectId: "change-map-status",
-            storageBucket: "change-map-status.appspot.com",
-            messagingSenderId: "694811681430",
-            appId: "1:694811681430:web:d84fe0256ab33c197318b7",
-            measurementId: "G-E3M7PCK3JV"
-        };
+    // Config Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyCvhyniR0OYTHGXKoEqsShn8Q4iPrcZFIA",
+        authDomain: "change-map-status.firebaseapp.com",
+        databaseURL: "https://change-map-status-default-rtdb.firebaseio.com",
+        projectId: "change-map-status",
+        storageBucket: "change-map-status.appspot.com",
+        messagingSenderId: "694811681430",
+        appId: "1:694811681430:web:d84fe0256ab33c197318b7",
+        measurementId: "G-E3M7PCK3JV"
+    };
 
-        firebase.initializeApp(firebaseConfig);
-        // Solicita permissão para notificações ao carregar a página
-if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-    Notification.requestPermission();
-}
+    firebase.initializeApp(firebaseConfig);
 
-        const database = firebase.database();
-        const messagesContainer = document.getElementById('messages-container');
+    // Solicita permissão para notificações
+    if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+    }
 
-        // Função para detectar URLs e transformá-las em links clicáveis
-        function detectURLs(text) {
-            const urlRegex = /(https?:\/\/[^\s]+)/g;
-            return text.replace(urlRegex, function(url) {
-                return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    const database = firebase.database();
+    const messagesContainer = document.getElementById('messages-container');
+
+    // Detecta URLs e transforma em links clicáveis
+    function detectURLs(text) {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.replace(urlRegex, function(url) {
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+        });
+    }
+
+    // Cria e exibe a mensagem na tela + envia notificação
+    function criarMensagem(texto, origem) {
+        texto = detectURLs(texto);
+
+        const now = new Date();
+        const hora = now.toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' });
+
+        const messageBox = document.createElement("div");
+        messageBox.className = "message-box";
+        messageBox.innerHTML = `
+            <i class="fas fa-bell"></i>
+            <div>
+                <div><strong>${origem}:</strong> ${texto}</div>
+                <div class="hora-msg">${hora}</div>
+            </div>
+        `;
+
+        messagesContainer.appendChild(messageBox);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Notificação no navegador
+        if (Notification.permission === "granted") {
+            new Notification(`Alerta de ${origem}`, {
+                body: texto.replace(/<[^>]*>?/gm, ""), // remove tags HTML da notificação
+                icon: "https://cdn-icons-png.flaticon.com/512/565/565547.png" // ícone opcional
             });
         }
+    }
 
-        document.addEventListener("DOMContentLoaded", () => {
-
-            const dbPath = "messages1";
-
-            database.ref(dbPath).on("child_added", (snapshot) => {
-                if (snapshot.exists()) {
-                    const data = snapshot.val();
-                    let msgText = typeof data === "string" ? data : 
-                        (data.text || data.message || data.mensagem || JSON.stringify(data));
-                    
-                    // Detecta URLs e converte para links clicáveis
-                    msgText = detectURLs(msgText);
-
-                    const now = new Date();
-                    const hora = now.toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' });
-
-                    const messageBox = document.createElement("div");
-                    messageBox.className = "message-box";
-                    messageBox.innerHTML = `
-                        <i class="fas fa-bell"></i>
-                        <div>
-                            <div>${msgText}</div>
-                            <div class="hora-msg">${hora}</div>
-                        </div>
-                    `;
-
-                    messagesContainer.appendChild(messageBox);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                }
-            });
+    // Escuta um path do Firebase em tempo real
+    function escutarPath(path, nomeExibicao) {
+        database.ref(path).on("child_added", (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                const msgText = typeof data === "string" ? data : 
+                    (data.text || data.message || data.mensagem || JSON.stringify(data));
+                criarMensagem(msgText, nomeExibicao);
+            }
         });
-    </script>
+    }
+
+    // Ativa os listeners ao carregar a página
+    document.addEventListener("DOMContentLoaded", () => {
+        escutarPath("messages1", "Chuvas");
+        escutarPath("messages", "Alertas");
+    });
+</script>
+
 </body>
 </html>
