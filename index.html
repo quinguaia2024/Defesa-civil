@@ -180,7 +180,7 @@ if (Notification.permission !== 'granted' && Notification.permission !== 'denied
 
         document.addEventListener("DOMContentLoaded", () => {
 
-            const dbPath = "messages";
+            const dbPath = "messages1";
 
             database.ref(dbPath).on("child_added", (snapshot) => {
                 if (snapshot.exists()) {
